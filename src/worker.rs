@@ -29,12 +29,14 @@ impl WorkerHandler {
 
     /// `start` method ...
     pub fn start(&self) {
+        println!("Worker [{}] starting up...", self.id);
+
         *self.running.lock().unwrap() = true;
         let running = Arc::clone(&self.running);
         let worker = Arc::clone(&self.worker);
 
-        let handle = thread::spawn(move || {
-            let mut last_pull = Duration::from_secs(0);
+        thread::spawn(move || {
+            let mut last_pull = Duration::from_secs(300);
             
             while *running.lock().unwrap() {
                 if last_pull > Duration::from_secs(300) {
@@ -47,15 +49,12 @@ impl WorkerHandler {
                 thread::sleep(Duration::from_secs(1));
             }
         });
-
-        println!("Worker [{}] shutting down...", self.id);
-        handle.join()
-            .expect("error: unable to join worker thread");
     }
 
     /// `stop` method ...
     pub fn stop(&self) {
         *self.running.lock().unwrap() = false;
+        println!("Worker [{}] shutting down...", self.id);
     }
 }
 
@@ -77,18 +76,26 @@ impl Worker {
     }
 
     /// `pull_data` method ...
-    pub fn pull_data(&self) {
+    pub fn pull_data(&mut self) {
         // one request to get num pages
         let (orders, pages) = self.get_pages();
+
         let orders_mutex = Arc::new(Mutex::new(orders));
+        let mut handles = vec![];
+        let region_id = self.region_id;
 
         // rest of the requests
         for i in 2..(pages+1) {
             let client = Arc::clone(&self.client);
             let orders = Arc::clone(&orders_mutex);
 
-            thread::spawn(move || {
-                let uri = format!("{}", i);
+            let handle = thread::spawn(move || {
+                let uri = format!(
+                    "https://esi.evetech.net/latest/markets/{}/orders/\
+                    ?datasource=tranquility&order_type=all&page={}",
+                    region_id,
+                    i,
+                );
 
                 let mut res = match (*client).get(uri) {
                     Ok(res) => res,
@@ -103,22 +110,31 @@ impl Worker {
                 let mut new_orders: Vec<Order> = res.body_mut().json()
                     .unwrap_or_else(|_| vec![]);
 
-                if cfg!(debug_assertions) && new_orders.is_empty() {
-                    eprintln!("error: unable to deserialize json");
-                }
-
                 (*orders.lock().unwrap()).append(&mut new_orders);
             });
+
+            handles.push(handle);
         }
 
-        self.parse_orders();
+        for handle in handles {
+            handle.join().unwrap();
+        }
 
-        println!("Worker [{}] pulled data.", self.region_id);
+        // move orders out of mutex
+        let orders = Arc::try_unwrap(orders_mutex)
+            .expect("error: mutex still has multiple owners");
+        let orders = orders.into_inner()
+            .expect("error: unable to unlock mutex");
+        self.parse_orders(orders);
     }
 
     // `get_pages` method ...
-    fn get_pages(&self) -> (Vec<Order>, i32) {
-        let uri = "";
+    fn get_pages(&mut self) -> (Vec<Order>, i32) {
+        let uri = format!(
+            "https://esi.evetech.net/latest/markets/{}/orders/\
+            ?datasource=tranquility&order_type=all&page=1",
+            self.region_id
+        );
 
         let mut res = match (*self.client).get(uri) {
             Ok(res) => res,
@@ -135,26 +151,44 @@ impl Worker {
             .to_str().unwrap()
             .parse().unwrap();
 
-        let orders: Vec<Order> = res.body_mut().json()
-            .unwrap_or_else(|_| vec![]);
-
-        if cfg!(debug_assertions) && orders.is_empty() {
-            eprintln!("error: unable to deserialize json");
-        }
-
-        (orders, pages)
+        (res.body_mut().json().unwrap_or_else(|_| vec![]), pages)
     }
 
     /// `parse_orders` method ...
-    fn parse_orders(&self) {
+    fn parse_orders(&mut self, orders: Vec<Order>) {
+        let mut type_orders: HashMap<i32, TypeOrders> = HashMap::new();
 
+        for order in orders {
+            type_orders.entry(order.type_id).or_insert(TypeOrders {
+                sell_orders: vec![],
+                buy_orders: vec![],
+            });
+
+            if order.is_buy_order {
+                type_orders.get_mut(&order.type_id).unwrap().buy_orders
+                    .push(order);
+            } else {
+                type_orders.get_mut(&order.type_id).unwrap().sell_orders
+                    .push(order);
+            }
+        }
+
+        self.orders = type_orders;
     }
 }
 
 /// `Order` struct ...
 #[derive(Debug, Deserialize)]
 struct Order {
-
+    duration: i32,
+    is_buy_order: bool,
+    issued: String,
+    location_id: i64,
+    price: f64,
+    system_id: i32,
+    type_id: i32,
+    volume_remain: i32,
+    volume_total: i32,
 }
 
 /// `TypeOrders` struct ...
