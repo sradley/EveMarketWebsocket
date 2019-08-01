@@ -2,24 +2,27 @@
 //! 
 //! ...
 
+use std::sync::Arc;
+use ws::{Handler, Sender};
 use crate::worker::WorkerHandler;
 
 /// `MarketHandler` struct ...
 pub struct MarketHandler {
-    workers: Vec<WorkerHandler>
+    workers: Vec<WorkerHandler>,
+    //socket: Arc<Sender>,
 }
 
 impl MarketHandler {
     /// `MarketHandler` constructor ...
-    pub fn new(region_ids: Vec<i32>) -> Self {
-        let workers = region_ids.iter()
-            .map(|region_id| {
-                WorkerHandler::new(*region_id)
-            })
-            .collect();
+    pub fn new(region_ids: Vec<i32>, socket: Arc<Sender>) -> Self {
+        let mut workers = vec![];
+        for region_id in region_ids {
+            workers.push(WorkerHandler::new(region_id, Arc::clone(&socket)));
+        }
 
         Self {
             workers,
+            //socket,
         }
     }
 
@@ -37,3 +40,5 @@ impl MarketHandler {
         }
     }
 }
+
+impl Handler for MarketHandler {}

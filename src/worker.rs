@@ -6,41 +6,57 @@ use std::time::Duration;
 use std::sync::{Arc, Mutex};
 use std::thread;
 use std::collections::HashMap;
-
 use chttp::HttpClient;
-use serde_derive::Deserialize;
+use serde_derive::{Deserialize, Serialize};
+use ws::Sender;
 
 /// `WorkerHandler` struct ...
 pub struct WorkerHandler {
-    id: i32,
     running: Arc<Mutex<bool>>,
     worker: Arc<Mutex<Worker>>,
+    socket: Arc<Sender>,
 }
 
 impl WorkerHandler {
     /// `WorkerHandler` constructor ...
-    pub fn new(region_id: i32) -> Self {
+    pub fn new(region_id: i32, socket: Arc<Sender>) -> Self {
         Self {
-            id: region_id,
             running: Arc::new(Mutex::new(false)),
             worker: Arc::new(Mutex::new(Worker::new(region_id))),
+            socket,
         }
     }
 
     /// `start` method ...
     pub fn start(&self) {
-        println!("Worker [{}] starting up...", self.id);
-
         *self.running.lock().unwrap() = true;
+
         let running = Arc::clone(&self.running);
         let worker = Arc::clone(&self.worker);
+        let socket = Arc::clone(&self.socket);
 
         thread::spawn(move || {
             let mut last_pull = Duration::from_secs(300);
             
             while *running.lock().unwrap() {
                 if last_pull > Duration::from_secs(300) {
-                    (*worker.lock().unwrap()).pull_data();
+                    let data = (*worker.lock().unwrap()).pull_data();
+
+                    // convert the message to json and send via websocket
+                    match serde_json::to_string(&data) {
+                        Ok(res) => {
+                            // should handle this unwrap
+                            socket.broadcast(res).unwrap();
+                        },
+                        Err(err) => {
+                            if cfg!(debug_assertions) {
+                                eprintln!(
+                                    "error: unable to serialize json {}",
+                                    err
+                                );
+                            }
+                        },
+                    };
 
                     last_pull = Duration::from_secs(0);
                 }
@@ -54,7 +70,6 @@ impl WorkerHandler {
     /// `stop` method ...
     pub fn stop(&self) {
         *self.running.lock().unwrap() = false;
-        println!("Worker [{}] shutting down...", self.id);
     }
 }
 
@@ -62,7 +77,6 @@ impl WorkerHandler {
 struct Worker {
     region_id: i32,
     client: Arc<HttpClient>,
-    orders: HashMap<i32, TypeOrders>,
 }
 
 impl Worker {
@@ -71,12 +85,11 @@ impl Worker {
         Self {
             region_id,
             client: Arc::new(HttpClient::new()),
-            orders: HashMap::new(),
         }
     }
 
     /// `pull_data` method ...
-    pub fn pull_data(&mut self) {
+    pub fn pull_data(&mut self) -> RegionOrders {
         // one request to get num pages
         let (orders, pages) = self.get_pages();
 
@@ -125,7 +138,10 @@ impl Worker {
             .expect("error: mutex still has multiple owners");
         let orders = orders.into_inner()
             .expect("error: unable to unlock mutex");
-        self.parse_orders(orders);
+
+        //println!("worker [{}] pulled data", self.region_id);
+
+        self.parse_orders(orders)
     }
 
     // `get_pages` method ...
@@ -155,7 +171,7 @@ impl Worker {
     }
 
     /// `parse_orders` method ...
-    fn parse_orders(&mut self, orders: Vec<Order>) {
+    fn parse_orders(&mut self, orders: Vec<Order>) -> RegionOrders {
         let mut type_orders: HashMap<i32, TypeOrders> = HashMap::new();
 
         for order in orders {
@@ -173,12 +189,12 @@ impl Worker {
             }
         }
 
-        self.orders = type_orders;
+        RegionOrders { region_id: self.region_id, orders: type_orders }
     }
 }
 
 /// `Order` struct ...
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Deserialize, Serialize)]
 struct Order {
     duration: i32,
     is_buy_order: bool,
@@ -192,8 +208,15 @@ struct Order {
 }
 
 /// `TypeOrders` struct ...
-#[derive(Debug)]
+#[derive(Debug, Serialize)]
 struct TypeOrders {
     sell_orders: Vec<Order>,
     buy_orders: Vec<Order>,
+}
+
+/// `RegionOrders` struct ...
+#[derive(Debug, Serialize)]
+struct RegionOrders {
+    region_id: i32,
+    orders: HashMap<i32, TypeOrders>,
 }

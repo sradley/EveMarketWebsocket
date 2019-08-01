@@ -1,22 +1,22 @@
 //! # EveMarketAnalysis
 //! 
 //! ...
+//! 
+//! TODO: add logging
 
-use std::thread;
-use std::time::Duration;
+use std::sync::Arc;
 use eve_market_analysis::handler::MarketHandler;
 
 fn main() {
-    let handle = MarketHandler::new(
-        vec![
-            10000030,
-            10000032,
-        ]
-    );
+    ws::listen("127.0.0.1:3012", |out| {
+        let handler = MarketHandler::new(
+            vec![
+                10000030,
+            ],
+            Arc::new(out)
+        );
+        handler.start();
 
-    handle.start();
-
-    thread::sleep(Duration::from_secs(500));
-
-    handle.stop();
+        handler
+    }).unwrap();
 }
