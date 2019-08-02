@@ -2,7 +2,6 @@
 //! 
 //! ...
 //! 
-//! TODO: remove clients when they disconnect
 //! TODO: add channels
 //! TODO: add wss support
 //! TODO: write tests
