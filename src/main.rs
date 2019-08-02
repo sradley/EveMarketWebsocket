@@ -17,5 +17,8 @@ fn main() -> ws::Result<()> {
         .map(|()| log::set_max_level(LevelFilter::Info))
         .unwrap();
 
-    run("127.0.0.1", 3012)
+    let region_ids = vec![
+        10000030
+    ];
+    run(region_ids, "127.0.0.1", 3012)
 }

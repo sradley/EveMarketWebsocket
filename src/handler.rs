@@ -12,10 +12,7 @@ pub struct SocketHandler;
 
 impl Handler for SocketHandler {
     fn on_open(&mut self, shake: ws::Handshake) -> ws::Result<()> {
-        info!(
-            "[websocket] client connected from: {:?}",
-            shake.peer_addr.unwrap()
-        );
+        info!("[websocket] client connected from: {:?}", shake.peer_addr.unwrap());
         Ok(())
     }
 

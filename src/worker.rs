@@ -89,25 +89,14 @@ impl WorkerHandler {
                                 match client.send(data.clone()) {
                                     Ok(_) => (),
                                     Err(_) => {
-                                        warn!(
-                                            "[worker `{}`] unable to send data",
-                                            worker.region_id,
-                                        );
-                                    }
+                                        warn!("[worker `{}`] can't send data", worker.region_id);
+                                    },
                                 }
                             }
 
-                            info!(
-                                "[worker `{}`] sent data",
-                                worker.region_id
-                            );
+                            info!("[worker `{}`] sent data", worker.region_id);
                         },
-                        Err(_) => {
-                            warn!(
-                                "[worker `{}`] unable to serialize json",
-                                worker.region_id
-                            );
-                        },
+                        Err(_) => warn!("[worker `{}`] can't serialize json", worker.region_id),
                     };
                 }
 
@@ -133,10 +122,7 @@ struct Worker {
 impl Worker {
     /// `Worker` constructor ...
     pub fn new(region_id: i32) -> Self {
-        Self {
-            region_id,
-            client: Arc::new(HttpClient::new()),
-        }
+        Self { region_id, client: Arc::new(HttpClient::new()) }
     }
 
     /// `pull_data` method ...
@@ -146,7 +132,7 @@ impl Worker {
         let pages = match pages {
             Some(pages) => pages,
             None => {
-                warn!("[worker `{}`] unable to get pages", self.region_id);
+                warn!("[worker `{}`] can't get pages", self.region_id);
                 return None
             }
         };
@@ -182,10 +168,7 @@ impl Worker {
 
                 let mut new_orders: Vec<Order> = res.body_mut().json()
                     .unwrap_or_else(|_| {
-                        warn!(
-                            "[worker `{}`] unable to deserialize json",
-                            region_id
-                        );
+                        warn!("[worker `{}`] can't deserialize json", region_id);
                         vec![]
                     });
 
@@ -204,20 +187,12 @@ impl Worker {
         // move orders out of mutex
         let orders = Arc::try_unwrap(orders_mutex)
             .unwrap_or_else(|_| {
-                warn!(
-                    "[worker `{}`] mutex still has multiple owners",
-                    self.region_id
-                );
-
+                warn!("[worker `{}`] mutex still has multiple owners", self.region_id);
                 Mutex::new(vec![])
             });
         let orders = orders.into_inner()
             .unwrap_or_else(|_| {
-                warn!(
-                    "[worker `{}`] unable to unlock mutex",
-                    self.region_id
-                );
-
+                warn!("[worker `{}`] can't unlock mutex", self.region_id);
                 vec![]
             });
 
@@ -256,10 +231,7 @@ impl Worker {
         (
             res.body_mut().json()
                 .unwrap_or_else(|_| {
-                    warn!(
-                        "[worker `{}`] unable to deserialize json",
-                        self.region_id
-                    );
+                    warn!("[worker `{}`] can't deserialize json", self.region_id);
                     vec![]
                 }),
             Some(pages)

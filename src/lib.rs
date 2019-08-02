@@ -21,12 +21,7 @@ impl log::Log for Logger {
     fn log(&self, record: &Record) {
         if self.enabled(record.metadata()) {
             let utc = Utc::now();
-            println!(
-                "{} [{}]: {}",
-                utc.format("%Y-%m-%d %T"),
-                record.level(),
-                record.args()
-            );
+            println!("{} [{}]: {}", utc.format("%Y-%m-%d %T"), record.level(), record.args());
         }
     }
 
@@ -34,12 +29,10 @@ impl log::Log for Logger {
 }
 
 /// `run` function ...
-pub fn run(ip: &str, port: i32) -> ws::Result<()> {
+pub fn run(region_ids: Vec<i32>, ip: &str, port: i32) -> ws::Result<()> {
     info!("[websocket] listening on {}:{}", ip, port);
     let handler = Arc::new(handler::MarketHandler::new(
-        vec![
-            10000030,
-        ],
+        region_ids,
         Arc::new(Mutex::new(vec![])),
     ));
 
