@@ -259,6 +259,17 @@ impl Worker {
             }
         }
 
+        // sort buy and sell orders
+        for (_, val) in type_orders.iter_mut() {
+            // should probably handle these unwraps
+            val.sell_orders.sort_by(|a, b| {
+                a.price.partial_cmp(&b.price).unwrap()
+            });
+            val.buy_orders.sort_by(|a, b| {
+                b.price.partial_cmp(&a.price).unwrap()
+            });
+        }
+
         RegionOrders { region_id: self.region_id, orders: type_orders }
     }
 }

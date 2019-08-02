@@ -19,7 +19,8 @@ fn main() -> ws::Result<()> {
         .unwrap();
 
     let region_ids = vec![
-        10000030
+        10000030,
+        10000042,
     ];
     run(region_ids, "127.0.0.1", 3012)
 }
