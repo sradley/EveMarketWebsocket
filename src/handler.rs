@@ -4,12 +4,13 @@
 
 use std::sync::Arc;
 use ws::{Handler, Sender};
+use log::{info, warn};
 use crate::worker::WorkerHandler;
 
 /// `MarketHandler` struct ...
 pub struct MarketHandler {
     workers: Vec<WorkerHandler>,
-    //socket: Arc<Sender>,
+    socket: Arc<Sender>,
 }
 
 impl MarketHandler {
@@ -22,7 +23,7 @@ impl MarketHandler {
 
         Self {
             workers,
-            //socket,
+            socket,
         }
     }
 
@@ -41,4 +42,20 @@ impl MarketHandler {
     }
 }
 
-impl Handler for MarketHandler {}
+impl Handler for MarketHandler {
+    fn on_open(&mut self, shake: ws::Handshake) -> ws::Result<()> {
+        info!(
+            "[websocket] client connected from: {:?}",
+            shake.peer_addr.unwrap()
+        );
+        (*self.socket).send("Welcome to EveMarketAnalysis v0.1.0")
+    }
+
+    fn on_close(&mut self, code: ws::CloseCode, reason: &str) {
+        info!("[websocket] client disconnected ({:?}) {}", code, reason);
+    }
+
+    fn on_error(&mut self, _: ws::Error) {
+        warn!("[websocket] error occurred in websocket");
+    }
+}

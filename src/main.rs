@@ -2,21 +2,20 @@
 //! 
 //! ...
 //! 
-//! TODO: add logging
+//! TODO: add channels
+//! TODO: add ssl support
+//! TODO: write tests
+//! TODO: write documentation
 
-use std::sync::Arc;
-use eve_market_analysis::handler::MarketHandler;
+use log::LevelFilter;
+use eve_market_analysis::{run, Logger};
 
-fn main() {
-    ws::listen("127.0.0.1:3012", |out| {
-        let handler = MarketHandler::new(
-            vec![
-                10000030,
-            ],
-            Arc::new(out)
-        );
-        handler.start();
+static LOGGER: Logger = Logger;
 
-        handler
-    }).unwrap();
+fn main() -> ws::Result<()> {
+    log::set_logger(&LOGGER)
+        .map(|()| log::set_max_level(LevelFilter::Info))
+        .unwrap();
+
+    run("127.0.0.1", 3012)
 }
