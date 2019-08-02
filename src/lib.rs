@@ -6,7 +6,7 @@
 pub mod handler;
 pub mod worker;
 
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 use log::{Record, Metadata, info};
 use chrono::Utc;
 
@@ -36,16 +36,17 @@ impl log::Log for Logger {
 /// `run` function ...
 pub fn run(ip: &str, port: i32) -> ws::Result<()> {
     info!("[websocket] listening on {}:{}", ip, port);
-    
-    ws::listen(format!("{}:{}", ip, port), |out| {
-        let handler = handler::MarketHandler::new(
-            vec![
-                10000030,
-            ],
-            Arc::new(out)
-        );
-        handler.start();
+    let handler = Arc::new(handler::MarketHandler::new(
+        vec![
+            10000030,
+        ],
+        Arc::new(Mutex::new(vec![])),
+    ));
 
-        handler
+    handler.start();
+    
+    ws::listen(format!("{}:{}", ip, port), move |out| {
+        handler.add_client(out);
+        handler::SocketHandler {}
     })
 }

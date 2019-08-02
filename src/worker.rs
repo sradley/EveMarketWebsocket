@@ -44,17 +44,17 @@ pub struct WorkerHandler {
     region_id: i32,
     running: Arc<Mutex<bool>>,
     worker: Arc<Mutex<Worker>>,
-    socket: Arc<Sender>,
+    clients: Arc<Mutex<Vec<Sender>>>,
 }
 
 impl WorkerHandler {
     /// `WorkerHandler` constructor ...
-    pub fn new(region_id: i32, socket: Arc<Sender>) -> Self {
+    pub fn new(region_id: i32, clients: Arc<Mutex<Vec<Sender>>>) -> Self {
         Self {
             region_id,
             running: Arc::new(Mutex::new(true)),
             worker: Arc::new(Mutex::new(Worker::new(region_id))),
-            socket,
+            clients,
         }
     }
 
@@ -64,7 +64,7 @@ impl WorkerHandler {
 
         let running = Arc::clone(&self.running);
         let worker = Arc::clone(&self.worker);
-        let socket = Arc::clone(&self.socket);
+        let clients = Arc::clone(&self.clients);
 
         thread::spawn(move || {
             let mut last_pull = Duration::from_secs(300);
@@ -83,20 +83,24 @@ impl WorkerHandler {
                     // convert the message to json and send via websocket
                     match serde_json::to_string(&data) {
                         Ok(data) => {
-                            match socket.send(data) {
-                                Ok(_) => {
-                                    info!(
-                                        "[worker `{}`] sent data",
-                                        worker.region_id
-                                    );
-                                },
-                                Err(_) => {
-                                    warn!(
-                                        "[worker `{}`] unable to send data",
-                                        worker.region_id
-                                    );
-                                },
-                            };
+                            let clients = clients.lock().unwrap();
+
+                            for client in (*clients).iter() {
+                                match client.send(data.clone()) {
+                                    Ok(_) => (),
+                                    Err(_) => {
+                                        warn!(
+                                            "[worker `{}`] unable to send data",
+                                            worker.region_id,
+                                        );
+                                    }
+                                }
+                            }
+
+                            info!(
+                                "[worker `{}`] sent data",
+                                worker.region_id
+                            );
                         },
                         Err(_) => {
                             warn!(
