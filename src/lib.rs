@@ -7,8 +7,14 @@ pub mod handler;
 pub mod worker;
 
 use std::sync::{Arc, Mutex};
+use std::collections::HashMap;
 use log::{Record, Metadata, info};
 use chrono::Utc;
+use ws::Sender;
+use ws::util::Token;
+
+/// `ClientList` type ...
+type ClientList = Arc<Mutex<HashMap<Token, Arc<Sender>>>>;
 
 /// `Logger` struct ...
 pub struct Logger;
@@ -33,13 +39,12 @@ pub fn run(region_ids: Vec<i32>, ip: &str, port: i32) -> ws::Result<()> {
     info!("[websocket] listening on {}:{}", ip, port);
     let handler = Arc::new(handler::MarketHandler::new(
         region_ids,
-        Arc::new(Mutex::new(vec![])),
+        Arc::new(Mutex::new(HashMap::new())),
     ));
 
     handler.start();
     
     ws::listen(format!("{}:{}", ip, port), move |out| {
-        handler.add_client(out);
-        handler::SocketHandler {}
+        handler::SocketHandler::new(Arc::clone(handler.clients()), Arc::new(out))
     })
 }

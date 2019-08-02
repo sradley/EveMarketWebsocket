@@ -2,10 +2,12 @@
 //! 
 //! ...
 //! 
+//! TODO: remove clients when they disconnect
 //! TODO: add channels
 //! TODO: add wss support
 //! TODO: write tests
 //! TODO: write documentation
+//! TODO: add AWS cognito authentication
 
 use log::LevelFilter;
 use eve_market_analysis::{run, Logger};

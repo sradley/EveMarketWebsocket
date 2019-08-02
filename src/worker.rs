@@ -8,8 +8,8 @@ use std::thread;
 use std::collections::HashMap;
 use chttp::HttpClient;
 use serde_derive::{Deserialize, Serialize};
-use ws::Sender;
 use log::{info, warn};
+use crate::ClientList;
 
 /// `Order` struct ...
 #[derive(Debug, Deserialize, Serialize)]
@@ -44,12 +44,12 @@ pub struct WorkerHandler {
     region_id: i32,
     running: Arc<Mutex<bool>>,
     worker: Arc<Mutex<Worker>>,
-    clients: Arc<Mutex<Vec<Sender>>>,
+    clients: ClientList,
 }
 
 impl WorkerHandler {
     /// `WorkerHandler` constructor ...
-    pub fn new(region_id: i32, clients: Arc<Mutex<Vec<Sender>>>) -> Self {
+    pub fn new(region_id: i32, clients: ClientList) -> Self {
         Self {
             region_id,
             running: Arc::new(Mutex::new(true)),
@@ -85,7 +85,7 @@ impl WorkerHandler {
                         Ok(data) => {
                             let clients = clients.lock().unwrap();
 
-                            for client in (*clients).iter() {
+                            for (_, client) in (*clients).iter() {
                                 match client.send(data.clone()) {
                                     Ok(_) => (),
                                     Err(_) => {
