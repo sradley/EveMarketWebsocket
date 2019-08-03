@@ -86,11 +86,16 @@ impl WorkerHandler {
                             let clients = clients.lock().unwrap();
 
                             for (_, client) in (*clients).iter() {
-                                match client.send(data.clone()) {
-                                    Ok(_) => (),
-                                    Err(_) => {
-                                        warn!("[worker `{}`] can't send data", worker.region_id);
-                                    },
+                                if client.in_channel(worker.region_id) {
+                                    match client.sender.send(data.clone()) {
+                                        Ok(_) => (),
+                                        Err(_) => {
+                                            warn!(
+                                                "[worker `{}`] can't send data",
+                                                worker.region_id
+                                            );
+                                        },
+                                    }
                                 }
                             }
 

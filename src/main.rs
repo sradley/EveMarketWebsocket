@@ -2,7 +2,6 @@
 //! 
 //! ...
 //! 
-//! TODO: add channels
 //! TODO: add wss support
 //! TODO: write tests
 //! TODO: write documentation
