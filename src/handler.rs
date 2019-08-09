@@ -1,10 +1,10 @@
 //! # MarketHandler
-//! 
+//!
 //! ...
 
-use std::sync::Arc;
 use crate::worker::WorkerHandler;
 use crate::ClientList;
+use std::sync::Arc;
 
 /// `MarketHandler` struct ...
 pub struct MarketHandler {
@@ -20,10 +20,7 @@ impl MarketHandler {
             workers.push(WorkerHandler::new(region_id, Arc::clone(&clients)));
         }
 
-        Self {
-            workers,
-            clients,
-        }
+        Self { workers, clients }
     }
 
     /// `start` method ...

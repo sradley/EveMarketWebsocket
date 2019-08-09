@@ -1,15 +1,15 @@
 //! # WorkerHandler
-//! 
+//!
 //! ...
 
-use std::time::Duration;
+use crate::ClientList;
+use chttp::HttpClient;
+use log::{info, warn};
+use serde_derive::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::thread;
-use std::collections::HashMap;
-use chttp::HttpClient;
-use serde_derive::{Deserialize, Serialize};
-use log::{info, warn};
-use crate::ClientList;
+use std::time::Duration;
 
 /// `Order` struct ...
 #[derive(Debug, Deserialize, Serialize)]
@@ -68,7 +68,7 @@ impl WorkerHandler {
 
         thread::spawn(move || {
             let mut last_pull = Duration::from_secs(300);
-            
+
             while *running.lock().unwrap() {
                 if last_pull > Duration::from_secs(300) {
                     last_pull = Duration::from_secs(0);
@@ -94,13 +94,13 @@ impl WorkerHandler {
                                                 "[worker `{}`] can't send data",
                                                 worker.region_id
                                             );
-                                        },
+                                        }
                                     }
                                 }
                             }
 
                             info!("[worker `{}`] sent data", worker.region_id);
-                        },
+                        }
                         Err(_) => warn!("[worker `{}`] can't serialize json", worker.region_id),
                     };
                 }
@@ -127,7 +127,10 @@ struct Worker {
 impl Worker {
     /// `Worker` constructor ...
     pub fn new(region_id: i32) -> Self {
-        Self { region_id, client: Arc::new(HttpClient::new()) }
+        Self {
+            region_id,
+            client: Arc::new(HttpClient::new()),
+        }
     }
 
     /// `pull_data` method ...
@@ -138,12 +141,12 @@ impl Worker {
             Some(pages) => pages,
             None => {
                 warn!("[worker `{}`] can't get pages", self.region_id);
-                return None
+                return None;
             }
         };
 
         if pages < 2 {
-            return Some(self.parse_orders(orders))
+            return Some(self.parse_orders(orders));
         }
 
         let orders_mutex = Arc::new(Mutex::new(orders));
@@ -151,31 +154,29 @@ impl Worker {
         let region_id = self.region_id;
 
         // rest of the requests
-        for i in 2..(pages+1) {
+        for i in 2..(pages + 1) {
             let client = Arc::clone(&self.client);
             let orders = Arc::clone(&orders_mutex);
 
             let handle = thread::spawn(move || {
                 let uri = format!(
                     "https://esi.evetech.net/latest/markets/{}/orders/\
-                    ?datasource=tranquility&order_type=all&page={}",
-                    region_id,
-                    i,
+                     ?datasource=tranquility&order_type=all&page={}",
+                    region_id, i,
                 );
 
                 let mut res = match (*client).get(uri) {
                     Ok(res) => res,
                     Err(_) => {
                         warn!("[worker `{}`] request failed", region_id);
-                        return
-                    },
+                        return;
+                    }
                 };
 
-                let mut new_orders: Vec<Order> = res.body_mut().json()
-                    .unwrap_or_else(|_| {
-                        warn!("[worker `{}`] can't deserialize json", region_id);
-                        vec![]
-                    });
+                let mut new_orders: Vec<Order> = res.body_mut().json().unwrap_or_else(|_| {
+                    warn!("[worker `{}`] can't deserialize json", region_id);
+                    vec![]
+                });
 
                 (*orders.lock().unwrap()).append(&mut new_orders);
             });
@@ -190,16 +191,17 @@ impl Worker {
         }
 
         // move orders out of mutex
-        let orders = Arc::try_unwrap(orders_mutex)
-            .unwrap_or_else(|_| {
-                warn!("[worker `{}`] mutex still has multiple owners", self.region_id);
-                Mutex::new(vec![])
-            });
-        let orders = orders.into_inner()
-            .unwrap_or_else(|_| {
-                warn!("[worker `{}`] can't unlock mutex", self.region_id);
-                vec![]
-            });
+        let orders = Arc::try_unwrap(orders_mutex).unwrap_or_else(|_| {
+            warn!(
+                "[worker `{}`] mutex still has multiple owners",
+                self.region_id
+            );
+            Mutex::new(vec![])
+        });
+        let orders = orders.into_inner().unwrap_or_else(|_| {
+            warn!("[worker `{}`] can't unlock mutex", self.region_id);
+            vec![]
+        });
 
         Some(self.parse_orders(orders))
     }
@@ -208,7 +210,7 @@ impl Worker {
     fn get_pages(&mut self) -> (Vec<Order>, Option<i32>) {
         let uri = format!(
             "https://esi.evetech.net/latest/markets/{}/orders/\
-            ?datasource=tranquility&order_type=all&page=1",
+             ?datasource=tranquility&order_type=all&page=1",
             self.region_id
         );
 
@@ -216,8 +218,8 @@ impl Worker {
             Ok(res) => res,
             Err(_) => {
                 warn!("[worker `{}`] request failed", self.region_id);
-                return (vec![], None)
-            },
+                return (vec![], None);
+            }
         };
 
         let pages = match res.headers().get("x-pages") {
@@ -234,12 +236,11 @@ impl Worker {
         };
 
         (
-            res.body_mut().json()
-                .unwrap_or_else(|_| {
-                    warn!("[worker `{}`] can't deserialize json", self.region_id);
-                    vec![]
-                }),
-            Some(pages)
+            res.body_mut().json().unwrap_or_else(|_| {
+                warn!("[worker `{}`] can't deserialize json", self.region_id);
+                vec![]
+            }),
+            Some(pages),
         )
     }
 
@@ -256,10 +257,16 @@ impl Worker {
             // these unwraps are okay, as the above statement ensures that the
             // element exists in the hashmap
             if order.is_buy_order {
-                type_orders.get_mut(&order.type_id).unwrap().buy_orders
+                type_orders
+                    .get_mut(&order.type_id)
+                    .unwrap()
+                    .buy_orders
                     .push(order);
             } else {
-                type_orders.get_mut(&order.type_id).unwrap().sell_orders
+                type_orders
+                    .get_mut(&order.type_id)
+                    .unwrap()
+                    .sell_orders
                     .push(order);
             }
         }
@@ -267,14 +274,15 @@ impl Worker {
         // sort buy and sell orders
         for (_, val) in type_orders.iter_mut() {
             // should probably handle these unwraps
-            val.sell_orders.sort_by(|a, b| {
-                a.price.partial_cmp(&b.price).unwrap()
-            });
-            val.buy_orders.sort_by(|a, b| {
-                b.price.partial_cmp(&a.price).unwrap()
-            });
+            val.sell_orders
+                .sort_by(|a, b| a.price.partial_cmp(&b.price).unwrap());
+            val.buy_orders
+                .sort_by(|a, b| b.price.partial_cmp(&a.price).unwrap());
         }
 
-        RegionOrders { region_id: self.region_id, orders: type_orders }
+        RegionOrders {
+            region_id: self.region_id,
+            orders: type_orders,
+        }
     }
 }
