@@ -4,6 +4,7 @@
 //!
 //! TODO: collect past data
 //! TODO: write tests
+//! TODO: write comments
 //! TODO: write documentation
 
 use eve_market_analysis::{run, Logger};
