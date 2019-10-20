@@ -1,5 +1,5 @@
 [package]
-name = "eve_market_analysis"
+name = "eve_market_websocket"
 version = "0.1.0"
 authors = ["sradley <stephen.t.radley@protonmail.com>"]
 edition = "2018"
