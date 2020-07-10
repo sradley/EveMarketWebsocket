@@ -1,2 +1,2 @@
-# EveMarketAnalysis v0.1.0
+# eve-market-ws
 Eve market station-trading data retrieval websocket.
